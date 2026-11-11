@@ -1,0 +1,135 @@
+name: Upload to Nexus Mods
+
+# Manual release: Actions tab -> "Upload to Nexus Mods" -> Run workflow.
+# Nothing is built here: it uploads release/DungeonDoorWarp.zip, the DLL Tony built on his PC
+# (Data\SKSE\Plugins\DungeonDoorWarp.dll + .pdb + .ini), pushed together with the source it was built from. Posts the changelog, then uploads the zip as a new version of the main file.
+#
+# Needs, in the "nexus" environment (Settings -> Environments -> nexus):
+#   secret   NEXUSMODS_API_KEY  - personal API key from nexusmods.com/settings/api-keys
+# File ID 8196138 and Unique Mod ID 7318624468451 (Nexus mod 196067) are the defaults below (Files tab -> Advanced -> API).
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version shown on Nexus (e.g. 1.0.5)"
+        required: true
+      zip:
+        description: "Path of the zip in this repository"
+        required: false
+        default: "release/DungeonDoorWarp.zip"
+      changelog:
+        description: "Changelog text (optional, plain text; use ' | ' to separate lines)"
+        required: false
+        default: ""
+      description:
+        description: "File description on the Files tab (optional; default: the changelog, cut to 250 characters)"
+        required: false
+        default: ""
+      file_id:
+        description: "Nexus File ID of the main file (Files tab -> Advanced -> API -> File ID)"
+        required: false
+        default: "8196138"
+      mod_id:
+        description: "Nexus Unique Mod ID (same dialog), so the changelog is attached"
+        required: false
+        default: "7318624468451"
+      display_name:
+        description: "File name shown on Nexus"
+        required: false
+        default: "Dungeon Door Warp"
+      mod_manager:
+        description: "Allow mod manager downloads (false = manual download only)"
+        required: false
+        default: "true"
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    runs-on: ubuntu-24.04
+    environment: nexus
+    steps:
+      - name: Check settings
+        env:
+          HAS_KEY: ${{ secrets.NEXUSMODS_API_KEY != '' }}
+          FILE_ID: ${{ inputs.file_id }}
+          MOD_ID: ${{ inputs.mod_id }}
+        run: |
+          if [ "$HAS_KEY" != "true" ]; then echo "::error::Secret NEXUSMODS_API_KEY is missing in the nexus environment"; exit 1; fi
+          if [ -z "$FILE_ID" ]; then echo "::error::No File ID"; exit 1; fi
+          if [ -z "$MOD_ID" ]; then echo "::error::No Unique Mod ID"; exit 1; fi
+
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Check the zip
+        env:
+          ZIP: ${{ inputs.zip }}
+        run: |
+          if [ ! -f "$ZIP" ]; then echo "::error::$ZIP is not in the repository"; exit 1; fi
+          unzip -l "$ZIP"
+          for f in Data/SKSE/Plugins/DungeonDoorWarp.dll Data/SKSE/Plugins/DungeonDoorWarp.ini; do
+            unzip -l "$ZIP" | grep -q " $f\$" || { echo "::error::$f is missing from $ZIP - not uploading"; exit 1; }
+          done
+          cp "$ZIP" DungeonDoorWarp.zip
+
+      - name: Format changelog
+        id: log
+        if: ${{ inputs.changelog != '' }}
+        env:
+          TEXT: ${{ inputs.changelog }}
+        run: |
+          {
+            echo "text<<CHANGELOG_EOF"
+            printf '%s\n' "$TEXT" | sed 's/ | /\n/g'
+            echo "CHANGELOG_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # The file's own description on the Files tab (Nexus keeps it short): what changed in this version.
+      - name: File description
+        id: desc
+        env:
+          TEXT: ${{ inputs.description || inputs.changelog }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          d="$(printf '%s' "$TEXT" | sed 's/ | /; /g')"
+          case "$d" in [Vv]ersion*) ;; *) d="Version $VERSION: $d" ;; esac  # no "Version x: Version x:"
+          if [ ${#d} -gt 250 ]; then d="${d:0:246}..."; fi
+          echo "text=$d" >> "$GITHUB_OUTPUT"
+
+      # The changelog is posted BEFORE the file: an entry added through the API only shows on the
+      # Changelogs tab once Nexus rebuilds the page, and the upload is what makes it rebuild.
+      - name: Post changelog
+        if: ${{ inputs.changelog != '' }}
+        env:
+          KEY: ${{ secrets.NEXUSMODS_API_KEY }}
+          MOD_ID: ${{ inputs.mod_id }}
+          VERSION: ${{ inputs.version }}
+          TEXT: ${{ steps.log.outputs.text }}
+        run: |
+          body=$(jq -n --arg v "$VERSION" --arg c "$TEXT" '{version: $v, changelog: $c}')
+          code=$(curl -sS -o resp.json -w '%{http_code}' -X POST \
+            -H "apikey: $KEY" -H "Content-Type: application/json" -H "User-Agent: DungeonDoorWarp-release" \
+            --data "$body" "https://api.nexusmods.com/v3/mods/$MOD_ID/changelogs")
+          echo "HTTP $code"
+          cat resp.json; echo
+          if [ "$code" != "201" ]; then echo "::error::Nexus refused the changelog (HTTP $code): $(head -c 300 resp.json)"; exit 1; fi
+
+      - name: Upload to Nexus Mods
+        uses: Nexus-Mods/upload-action@main
+        with:
+          api_key: ${{ secrets.NEXUSMODS_API_KEY }}
+          file_id: ${{ inputs.file_id }}
+          filename: DungeonDoorWarp.zip
+          display_name: ${{ inputs.display_name }}
+          description: ${{ steps.desc.outputs.text }}
+          version: ${{ inputs.version }}
+          mod_id: ${{ inputs.mod_id }}
+          category: main
+          allow_mod_manager_download: ${{ inputs.mod_manager }}
+          primary_mod_manager_download: false
+          update_mod_version: true

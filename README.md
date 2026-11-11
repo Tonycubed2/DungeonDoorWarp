@@ -13,7 +13,7 @@ Plain teleport: no fast travel, no time passes. No ESP. Settings in `DungeonDoor
 - SKSE64
 - Address Library for SKSE Plugins
 
-Tested on Skyrim AE 1.6.1170. Built for SE 1.5.97 and AE 1.6.x / 1.7.99 (untested there). Not for VR.
+Tested on Skyrim AE 1.6.1170. Built for SE 1.5.97 and AE 1.6.x / 1.7.99 / 1.7.104 (untested there). Not for VR.
 
 ## Building
 
@@ -29,6 +29,12 @@ cmake --build build --config Release
 ```
 
 Output: `build\Release\DungeonDoorWarp.dll` and `.pdb`.
+
+## Changes
+
+- **1.0.5:** built with CommonLibSSE-NG 16.2.0. With 6.7.0, `TESObjectREFR::GetWorldspace()` on a reference with
+  no parent cell called vtable slot 0x98 (`SetParentCell`, with a garbage argument) instead of 0x97
+  (`GetSaveParentCell`), on SE and AE: checked against SkyrimSE.exe 1.5.97 and 1.6.1170 and the built DLL.
 
 ## License
 

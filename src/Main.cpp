@@ -1,4 +1,4 @@
-// Dungeon Door Warp 1.0.4
+// Dungeon Door Warp 1.0.5
 // Built against CommonLibSSE-NG 6.7.0 for Skyrim AE 1.6.1170 and 1.7.99.
 //
 // Log: Documents\My Games\Skyrim Special Edition\SKSE\DungeonDoorWarp.log
@@ -8,7 +8,7 @@
 #include "Warp.h"
 
 SKSEPluginInfo(
-	.Version = REL::Version{ 1, 0, 4, 0 },
+	.Version = REL::Version{ 1, 0, 5, 0 },
 	.Name = "DungeonDoorWarp"sv,
 	.Author = "tonycubed2"sv,
 	.StructCompatibility = SKSE::StructCompatibility::Independent,
@@ -39,7 +39,7 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 {
 	SKSE::Init(a_skse);
 
-	logger::info("DungeonDoorWarp 1.0.4 loading; game runtime {}", REL::Module::get().version().string());
+	logger::info("DungeonDoorWarp 1.0.5 loading; game runtime {}", REL::Module::get().version().string());
 
 	Settings::Load();
 	Warp::InstallHooks();

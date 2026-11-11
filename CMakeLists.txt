@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(DungeonDoorWarp VERSION 1.0.4 LANGUAGES CXX)
+project(DungeonDoorWarp VERSION 1.0.5 LANGUAGES CXX)
 
 if("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}")
 	message(FATAL_ERROR "in-source builds are not allowed")
